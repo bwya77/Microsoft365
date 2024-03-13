@@ -19,7 +19,7 @@ Function Connect-MSGraphAPI {
         } 
     }
     Process {
-        Write-Host "Connecting to the Graph API"
+        Write-Verbose "Connecting to the Graph API"
         $Response = Invoke-RestMethod -Uri $URI -Method POST -Body $ReqTokenBody
     }
     End {
@@ -33,7 +33,7 @@ Function Get-MSGraphRequest {
         [system.string]$AccessToken
     )
     begin {
-        $allPages = [System.Collections.ArrayList]@()
+        [System.Array]$allPages = @()
         $ReqTokenBody = @{
             Headers = @{
                 "Content-Type"  = "application/json"
@@ -46,25 +46,14 @@ Function Get-MSGraphRequest {
     process {
         write-verbose "GET request at endpoint: $Uri"
         $data = Invoke-RestMethod @ReqTokenBody
-        if ($data.'@odata.nextLink') {
-            do {
-                write-verbose "Getting next page results"
-                $ReqTokenBody = @{
-                    Headers = @{
-                        "Content-Type"  = "application/json"
-                        "Authorization" = "Bearer $($AccessToken)"
-                    }
-                    Method  = "Get"
-                    Uri     = $data.'@odata.nextLink'
-                }
-                $Data = Invoke-RestMethod @ReqTokenBody
-                $allPages.Add($data)
-            } until (!$data.'@odata.nextLink')
-            write-verbose "No more pages to get"
+        while ($data.'@odata.nextLink') {
+            $allPages += $data.value
+            $ReqTokenBody.Uri = $data.'@odata.nextLink'
+            $Data = Invoke-RestMethod @ReqTokenBody
+            # to avoid throttling, the loop will sleep for 3 seconds
+            Start-Sleep -Seconds 3
         }
-        else {
-            $allPages.Add($Data)
-        }
+        $allPages += $data.value
     }
     end {
         Write-Verbose "Returning all results"
