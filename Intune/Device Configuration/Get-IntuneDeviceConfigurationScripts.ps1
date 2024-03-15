@@ -49,9 +49,11 @@ function Get-IntuneDeviceConfigurationScripts {
                     Scope       = 'CurrentUser'
                     Force       = $true
                     ErrorAction = "Stop"
-                } 
+                }
+                #Install the Microsoft.Graph.Authentication module
                 Install-Module @module
                 Write-Verbose "Importing Microsoft.Graph.Authentication module"
+                #Import the Microsoft.Graph.Authentication module into memory
                 Import-Module Microsoft.Graph.Authentication
             } 
             Catch {
@@ -68,6 +70,7 @@ function Get-IntuneDeviceConfigurationScripts {
                 Force       = $true
                 ErrorAction = "Stop"
             } 
+            # Create the root export directory
             New-Item @newDirectory | Out-Null
         }
         [System.Array]$dataArray = @()
@@ -82,6 +85,7 @@ function Get-IntuneDeviceConfigurationScripts {
                 NoWelcome    = $true
                 ErrorAction  = 'Stop'
             }
+            #Connect to Microsoft Graph REST API
             Connect-MgGraph @Request
         }
         catch {
@@ -89,6 +93,7 @@ function Get-IntuneDeviceConfigurationScripts {
             break
         }
         Write-Verbose "Checking for proper scope"
+        #Get the scopes that we are connected to
         $AuthdScopes = (Get-MgContext | Select-Object -ExpandProperty Scopes)
         #If we are not connected to the correct scope, we need to throw an error and exit
         if ($Scope -notin $AuthdScopes) {
@@ -98,7 +103,8 @@ function Get-IntuneDeviceConfigurationScripts {
         $Request = @{
             Uri    = $Uri
             Method = "GET"
-        } 
+        }
+        #Invoke the Microsoft Graph request
         $data = Invoke-MGGraphRequest @Request
         while ($data.'@odata.nextLink') {
             $resultsArray += $data.value
@@ -112,6 +118,7 @@ function Get-IntuneDeviceConfigurationScripts {
         foreach ($IntuneScript in $resultsArray) {
             Write-Verbose "Processing Script: $($IntuneScript.displayName)"
             $Request.Uri = "https://graph.microsoft.com/Beta/deviceManagement/deviceManagementScripts/$($IntuneScript.id)"
+            # Get the script content which is saved in base64
             $IntuneScriptContent = (Invoke-MGGraphRequest @Request).scriptContent
             #Decode the base64 encoded script content
             $IntuneScriptContent = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($IntuneScriptContent))
@@ -127,9 +134,11 @@ function Get-IntuneDeviceConfigurationScripts {
         if ($exportDirectory) {
             Write-Verbose "Exporting scripts to $exportDirectory"
             foreach ($i in $dataArray) {
+                #Create a new folder for each policy
                 [System.String]$policyFolder = "$exportDirectory/$($i.Name)"
                 #Create a new folder that matches the policy name
                 New-Item -ItemType Directory -Path $policyFolder -Force | Out-Null
+                #Create the file path
                 $FilePath = Join-Path -Path $policyFolder -ChildPath $i.fileName
                 #Export the script to the policy folder
                 $i.Script | Out-File -FilePath $FilePath -Force
